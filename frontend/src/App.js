@@ -5,6 +5,22 @@ import './App.css';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Video IDs already reported to Pendo, kept at module scope so each job's
+// outcome is tracked once per browser session.
+const pendoReportedVideoIds = new Set();
+
+const trackVideoGenerated = (videoId, properties) => {
+  if (pendoReportedVideoIds.has(videoId)) return;
+  pendoReportedVideoIds.add(videoId);
+  try {
+    if (window.pendo && typeof window.pendo.track === 'function') {
+      window.pendo.track('video_generated', properties);
+    }
+  } catch (error) {
+    // Tracking must never break video generation.
+  }
+};
+
 const VideoGeneratorApp = () => {
   const [activeTab, setActiveTab] = useState('text');
   const [textPrompt, setTextPrompt] = useState('');
@@ -67,6 +83,14 @@ const VideoGeneratorApp = () => {
       const checkVideo = async () => {
         try {
           const videoResponse = await axios.get(`${API}/video/${videoId}`);
+          if (videoResponse.data.status === 'completed' || videoResponse.data.status === 'failed') {
+            trackVideoGenerated(videoId, {
+              generation_type: 'text_to_video',
+              status: videoResponse.data.status,
+              style: selectedStyle,
+              duration: Number(duration) || 0
+            });
+          }
           if (videoResponse.data.status === 'completed') {
             setGeneratedVideo(videoResponse.data);
             setIsGenerating(false);
@@ -113,6 +137,14 @@ const VideoGeneratorApp = () => {
       const checkVideo = async () => {
         try {
           const videoResponse = await axios.get(`${API}/video/${videoId}`);
+          if (videoResponse.data.status === 'completed' || videoResponse.data.status === 'failed') {
+            trackVideoGenerated(videoId, {
+              generation_type: 'image_to_video',
+              status: videoResponse.data.status,
+              style: selectedImageStyle,
+              duration: Number(duration) || 0
+            });
+          }
           if (videoResponse.data.status === 'completed') {
             setGeneratedVideo(videoResponse.data);
             setIsGenerating(false);
